@@ -67,12 +67,12 @@ class MLP():
     def bias_sub(self, v):
         return v[:,:-1]
  
-    def forward_propagate(self):
+    def forward_propagate(self): # activation
         self.y0 = self.bias_add(self.x)
         self.y1[:] = self.bias_add(self.s1(self.y0 @ self.w1))
         self.y2[:] = self.s2(self.y1 @ self.w2)
     
-    def propagate_error(self, eta):
+    def propagate_error(self, eta): 
         e2 = self.z - self.y2
         d2 = e2*self.ds2(self.y1 @ self.w2)
         delta_w2 = eta*(self.y1.T @ d2)
@@ -83,7 +83,7 @@ class MLP():
 
         return delta_w1, delta_w2
     
-    def back_propagate(self, eta):
+    def back_propagate(self, eta): # correction
         delta_w1, delta_w2 = self.propagate_error(eta)
         self.w1 += delta_w1
         self.w2 += delta_w2
