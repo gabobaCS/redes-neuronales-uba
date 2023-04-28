@@ -27,6 +27,10 @@ functions = {
     "softmax":{
         "function": lambda x : np.apply_along_axis(h_softmax, 1, x),
         "derivative": lambda x : np.apply_along_axis(d_softmax, 1, x)
+    },
+    "x":{
+        "function": lambda x : np.sin(x),
+        "derivative": lambda x : np.cos(x)
     }
 }
 
@@ -36,7 +40,7 @@ class MLP():
     # sh: numero de hidden neurons.
     # s1: funcion para usar en el hidden layer.
     # s2: funcion para usar en el output layer.
-    def __init__(self, inputs, outputs, sh, s1 = "tanh", s2 = "tanh"):
+    def __init__(self, inputs, outputs, sh, s1 = "tanh", s2 = "tanh", lh):
         self.x = inputs
         self.z = outputs
 
@@ -44,13 +48,21 @@ class MLP():
         self.si = len(inputs[0])
         self.so = len(outputs[0])
         self.sh = sh
-
-        self.y0 = np.zeros((self.p, self.si + 1))
-        self.y1 = np.zeros((self.p, self.sh + 1))
-        self.y2 = np.zeros((self.p, self.so))
-
-        self.w1 = np.random.normal(0, 0.5, (self.si + 1, sh))
-        self.w2 = np.random.normal(0, 0.5, (sh + 1, self.so))
+        self.lh = lh
+        
+        # Inicializamos los hidden layers
+        y = [np.zeros((self.p, self.si + 1))]
+        for i in range(len(lh)):
+            y.append(np.zeros((self.p, self.lh[i] + 1)))
+        y.append(np.zeros((self.p, self.so)))
+        self.y = y
+        
+        # Inicializamos las matrices de pesos
+        w = [None, np.random.normal(0, 0.5, (self.si + 1, self.lh[0]))]
+        for i in range(len(lh) - 1):
+            w.append(np.random.normal(0, 0.5, (self.lh[i] + 1, self.lh[i + 1])))
+        w.append(np.random.normal(0, 0.5, (self.lh[-1] + 1, self.so)) ) 
+        self.w = w
 
         self.s1 = functions.get(s1)["function"]
         self.ds1 = functions.get(s1)["derivative"]
@@ -68,11 +80,30 @@ class MLP():
         return v[:,:-1]
  
     def forward_propagate(self): # activation
-        self.y0 = self.bias_add(self.x)
-        self.y1[:] = self.bias_add(self.s1(self.y0 @ self.w1))
-        self.y2[:] = self.s2(self.y1 @ self.w2)
+        self.y[0] = self.bias_add(self.x)
+        for i in range(1, len(self.y) - 1):
+            self.y[i] = self.bias_add(self.s1(self.y[i-1] @ self.w[i]))
+        self.y[-1] = self.s2(self.y[-1] @ self.w[-1])
+        
+        # self.y0 = self.bias_add(self.x)
+        # self.y1[:] = self.bias_add(self.s1(self.y0 @ self.w1))
+        # self.y2[:] = self.s2(self.y1 @ self.w2)
     
-    def propagate_error(self, eta): 
+    def propagate_error(self, eta):
+        e = self.z - self.y[-1]
+        dy = self.ds2(self.y[-1])
+        d = [e * dy]
+        
+        # delta_w = [eta*(self.y[-1].T @ dy)]
+        
+        for i in range(len(self.y) - 1, 0, -1):
+            e = dy @ self.w[i]
+            dy = self.bias_sub(e*self.ds1(self.y[-2] @ self.w[-1]))
+            delta_w = [eta*(self.y[i].T @ dy)]
+          
+        d2 = e2*self.ds2(self.y1 @ self.w2)
+        delta_w2 = eta*(self.y1.T @ d2)
+         
         e2 = self.z - self.y2
         d2 = e2*self.ds2(self.y1 @ self.w2)
         delta_w2 = eta*(self.y1.T @ d2)
